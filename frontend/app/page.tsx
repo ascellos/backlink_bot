@@ -11,6 +11,7 @@ export default function Home(){
     niche: "",
     title: "",
     anchor_text: "",
+    platform: "wordpress",
   });
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState(null);
@@ -38,8 +39,13 @@ export default function Home(){
   setPublishResult(null);
   setError(null);
 
+  const endpoint =
+    formData.platform === "devto"
+      ? "http://127.0.0.1:8000/generate-and-publish"
+      : "http://127.0.0.1:8000/generate-and-publish-wp";
+
   try {
-    const res = await fetch("http://127.0.0.1:8000/generate-and-publish-wp", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -101,13 +107,16 @@ export default function Home(){
     className="block w-full mb-2 p-2 border rounded"
   />
 
-  <input
-  name="target_site"
-  placeholder="Target Site (guest post site)"
-  value={formData.target_site}
+  <select
+  name="platform"
+  value={formData.platform}
   onChange={handleInputChange}
   className="block w-full mb-2 p-2 border rounded"
-/>
+>
+  <option value="wordpress">WordPress</option>
+  <option value="devto">Dev.to</option>
+</select>
+
 <input
   name="niche"
   placeholder="Niche (e.g. digital marketing)"
