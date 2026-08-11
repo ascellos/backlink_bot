@@ -10,7 +10,9 @@ from wordpress_poster import post_to_wordpress
 from database import init_db, save_backlink, get_all_backlinks
 from apscheduler.schedulers.background import BackgroundScheduler
 from site_checker import check_site_trust
+from client_context import get_client_context
 from fastapi.middleware.cors import CORSMiddleware
+from client_context import get_client_context
 
 app = FastAPI()
 init_db()
@@ -51,7 +53,7 @@ class WPAutoPublishRequest(BaseModel):
     target_site: str
     niche: str
     title: str
-    anchor_text: str = None
+    anchor_text: str | None = None
 
 class ClientRequest(BaseModel):
     name: str
@@ -79,8 +81,38 @@ def publish_article(request: PublishRequest):
 
 @app.post("/generate-and-publish")
 def generate_and_publish(request: AutoPublishRequest):
+    todays_count = count_todays_backlinks(request.client_site)
+    if todays_count >= 2:
+        return {
+            "error": "Daily backlink limit reached for this client.",
+            "client_site": request.client_site,
+            "todays_count": todays_count,
+            "limit": 2
+        }
+
     article = generate_article(request.client_site, request.target_site, request.niche)
+
+    previous_articles = get_previous_articles(request.client_site)
+    similarity_check = check_content_similarity(article, previous_articles)
+    if similarity_check["is_duplicate"]:
+        return {
+            "warning": "Generated article is too similar to a previous one for this client.",
+            "client_site": request.client_site,
+            "similarity_score": similarity_check["highest_similarity"],
+            "suggestion": "Try regenerating with a different angle or topic."
+        }
+
     result = post_to_devto(request.title, article, request.tags)
+
+    save_backlink(
+        client_site=request.client_site,
+        target_site=request.target_site,
+        platform="devto",
+        published_url=result.get("url"),
+        anchor_text="AI-chosen (not specified)",
+        article_content=article
+    )
+
     return {"published_url": result.get("url"), "article": article}
 
 @app.post("/publish-wordpress")
@@ -113,11 +145,14 @@ def generate_and_publish_wp(request: WPAutoPublishRequest):
                 "suggestion": "Try a different anchor phrase for better link diversity."
             }
 
+    client_context = get_client_context(request.client_site)
     article_markdown = generate_article(
         request.client_site, 
         request.target_site, 
         request.niche, 
-        anchor_text=request.anchor_text
+        anchor_text=request.anchor_text,
+        company_name=client_context['company_name'],
+        seed_keyword=client_context['seed_keyword']
     )
 
     previous_articles = get_previous_articles(request.client_site)

@@ -5,6 +5,15 @@ export default function Home(){
   const [backlinks , setBacklinks] = useState([]);
   const [verifying, setVerifying] = useState(false);
   const [error , setError] = useState(null);
+  const [formData, setFormData] = useState({
+    client_site: "",
+    target_site: "",
+    niche: "",
+    title: "",
+    anchor_text: "",
+  });
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState(null);
 
  const fetchBacklinks = async () => {
   try {
@@ -15,6 +24,34 @@ export default function Home(){
   } catch (err) {
     setError("Could not connect to backend. Is the server running?");
   }
+};
+
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+  const handlePublish = async (e) => {
+  e.preventDefault();
+  setPublishing(true);
+  setPublishResult(null);
+  setError(null);
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/generate-and-publish-wp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    const data = await res.json();
+    setPublishResult(data);
+    await fetchBacklinks();
+  } catch (err) {
+    setError("Publish failed. Is the backend running?");
+  }
+
+  setPublishing(false);
 };
   useEffect(() => {
   fetchBacklinks();
@@ -54,6 +91,61 @@ export default function Home(){
     >
       {verifying ? "Verifying..." : "Verify All Backlinks"}
     </button>
+
+    <form onSubmit={handlePublish} className="mb-8 p-4 border border-gray-500 rounded">
+  <input
+    name="client_site"
+    placeholder="Client Site (e.g. https://example.com)"
+    value={formData.client_site}
+    onChange={handleInputChange}
+    className="block w-full mb-2 p-2 border rounded"
+  />
+
+  <input
+  name="target_site"
+  placeholder="Target Site (guest post site)"
+  value={formData.target_site}
+  onChange={handleInputChange}
+  className="block w-full mb-2 p-2 border rounded"
+/>
+<input
+  name="niche"
+  placeholder="Niche (e.g. digital marketing)"
+  value={formData.niche}
+  onChange={handleInputChange}
+  className="block w-full mb-2 p-2 border rounded"
+/>
+<input
+  name="title"
+  placeholder="Article Title"
+  value={formData.title}
+  onChange={handleInputChange}
+  className="block w-full mb-2 p-2 border rounded"
+/>
+<input
+  name="anchor_text"
+  placeholder="Anchor Text (optional)"
+  value={formData.anchor_text}
+  onChange={handleInputChange}
+  className="block w-full mb-2 p-2 border rounded"
+/>
+<button
+  type="submit"
+  disabled={publishing}
+  className="bg-blue-600 text-white px-4 py-2 rounded"
+>
+  {publishing ? "Publishing..." : "Generate & Publish"}
+</button>
+</form>
+
+{publishResult && (
+  <div className="mb-8 p-4 border border-green-500 rounded">
+    <p className="font-bold">Published successfully!</p>
+    <a href={publishResult.published_url} target="_blank" className="text-blue-400 underline">
+      {publishResult.published_url}
+    </a>
+  </div>
+)}
 
     <table className="w-full border-collapse">
       <thead>
